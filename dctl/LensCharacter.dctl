@@ -1,0 +1,317 @@
+// LensCharacter.dctl — vintage / cine lens emulation for DaVinci Resolve
+// Use via: Effects > OpenFX > ResolveFX Color > DCTL  (Edit or Color page)
+//
+// Single-pass gather: every output pixel samples a shaped aperture kernel.
+// Kernel shape varies across the frame (cat-eye, swirl, field curvature),
+// per-channel kernels give lateral + longitudinal chromatic aberration.
+
+DEFINE_UI_PARAMS(preset, Lens, DCTLUI_COMBO_BOX, 1, { L_CUSTOM, L_HELIOS, L_PETZVAL, L_TRIOPLAN, L_TAKUMAR, L_SPEEDPANCHRO, L_SUPERSPEED, L_MODERN, L_NOCTILUX, L_ANAMORPHIC, L_STF, L_VINTAGEWIDE }, { Custom, Helios 44-2 58mm, Petzval 85mm, Trioplan 100mm Soap Bubble, Super Takumar 50mm, Cooke Speed Panchro, Zeiss Super Speed, Modern Clean Prime, Noctilux 50mm, Anamorphic 2x, Apodization STF, Vintage Wide 24mm })
+
+DEFINE_UI_PARAMS(defocus, Defocus, DCTLUI_SLIDER_FLOAT, 3.0, 0.0, 20.0, 0.1)
+DEFINE_UI_PARAMS(focusMode, Focus Map, DCTLUI_COMBO_BOX, 1, { F_UNIFORM, F_RADIAL, F_ALPHA, F_ALPHA_INV }, { Uniform, Radial Sharp Center, Alpha As Defocus, Inverted Alpha As Defocus })
+DEFINE_UI_PARAMS(focusRadius, Focus Radius, DCTLUI_SLIDER_FLOAT, 0.25, 0.0, 1.5, 0.01)
+DEFINE_UI_PARAMS(focusFalloff, Focus Falloff, DCTLUI_SLIDER_FLOAT, 0.5, 0.01, 2.0, 0.01)
+DEFINE_UI_PARAMS(centerX, Optical Center X, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(centerY, Optical Center Y, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(hlBoost, Highlight Boost, DCTLUI_SLIDER_FLOAT, 3.0, 0.0, 20.0, 0.1)
+DEFINE_UI_PARAMS(hlThresh, Highlight Threshold, DCTLUI_SLIDER_FLOAT, 0.7, 0.0, 2.0, 0.01)
+DEFINE_UI_PARAMS(quality, Samples, DCTLUI_SLIDER_INT, 96, 16, 384, 1)
+
+DEFINE_UI_PARAMS(mBokeh, Bokeh Character x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mSwirl, Swirl and Cat Eye x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mField, Edge Softness x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mCA, Chromatic Aberration x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 5.0, 0.01)
+DEFINE_UI_PARAMS(mDist, Distortion x, DCTLUI_SLIDER_FLOAT, 1.0, -2.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mGlow, Glow and Veil x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mVig, Vignette x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(mTint, Coating Tint x, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 3.0, 0.01)
+DEFINE_UI_PARAMS(fitFrame, Auto Zoom For Distortion, DCTLUI_CHECK_BOX, 1)
+
+DEFINE_UI_PARAMS(cBlades, C Aperture Blades 0 is round, DCTLUI_SLIDER_INT, 0, 0, 16, 1)
+DEFINE_UI_PARAMS(cCurve, C Blade Curvature, DCTLUI_SLIDER_FLOAT, 1.0, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cRot, C Aperture Rotation, DCTLUI_SLIDER_FLOAT, 0.0, -180.0, 180.0, 1.0)
+DEFINE_UI_PARAMS(cCatEye, C Cat Eye, DCTLUI_SLIDER_FLOAT, 0.4, 0.0, 1.5, 0.01)
+DEFINE_UI_PARAMS(cSwirl, C Swirl, DCTLUI_SLIDER_FLOAT, 0.3, 0.0, 2.0, 0.01)
+DEFINE_UI_PARAMS(cField, C Field Curvature, DCTLUI_SLIDER_FLOAT, 0.3, 0.0, 2.0, 0.01)
+DEFINE_UI_PARAMS(cRim, C Bokeh Edge soft to rim, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cOnion, C Onion Rings, DCTLUI_SLIDER_FLOAT, 0.0, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cLCA, C Lateral CA, DCTLUI_SLIDER_FLOAT, 0.2, -2.0, 2.0, 0.01)
+DEFINE_UI_PARAMS(cLoCA, C Bokeh Fringing, DCTLUI_SLIDER_FLOAT, 0.3, -1.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cK1, C Distortion K1 barrel plus, DCTLUI_SLIDER_FLOAT, 0.0, -0.5, 0.5, 0.005)
+DEFINE_UI_PARAMS(cK2, C Distortion K2, DCTLUI_SLIDER_FLOAT, 0.0, -0.5, 0.5, 0.005)
+DEFINE_UI_PARAMS(cVig, C Vignette, DCTLUI_SLIDER_FLOAT, 0.3, 0.0, 1.5, 0.01)
+DEFINE_UI_PARAMS(cGlow, C Glow Spherical Aberration, DCTLUI_SLIDER_FLOAT, 0.1, 0.0, 1.0, 0.01)
+DEFINE_UI_PARAMS(cVeil, C Veiling Glare, DCTLUI_SLIDER_FLOAT, 0.02, 0.0, 0.5, 0.005)
+DEFINE_UI_PARAMS(cSqueeze, C Anamorphic Squeeze, DCTLUI_SLIDER_FLOAT, 1.0, 1.0, 2.0, 0.01)
+DEFINE_UI_PARAMS(cTint, C Coating Tint warm, DCTLUI_SLIDER_FLOAT, 0.0, -1.0, 1.0, 0.01)
+
+DEFINE_UI_TOOLTIP(Defocus, "Maximum bokeh radius, in percent of frame height x 0.5")
+DEFINE_UI_TOOLTIP(Focus Map, "Where blur is applied. Alpha modes read the clip alpha: 1 = fully defocused (or inverted)")
+DEFINE_UI_TOOLTIP(Highlight Boost, "Makes bright points dominate the kernel so they bloom into bokeh balls")
+DEFINE_UI_TOOLTIP(Samples, "Kernel samples per pixel. Raise for large defocus, lower for playback")
+
+// ---------------------------------------------------------------------------
+// Preset table: one row per lens, NP columns
+//  0 blades  1 curve  2 rot  3 catEye  4 swirl  5 field  6 rim  7 onion
+//  8 lca  9 loca  10 k1  11 k2  12 vig  13 glow  14 veil  15 squeeze  16 tint
+// ---------------------------------------------------------------------------
+#define NP 17
+__CONSTANT__ float PRESETS[12 * NP] = {
+ // Custom placeholder (replaced by C sliders)
+ 0, 1.0f,   0, 0.4f, 0.3f, 0.3f,  0.0f, 0.0f, 0.2f, 0.3f,  0.0f,  0.0f,  0.3f, 0.1f,  0.02f, 1.0f, 0.0f,
+ // Helios 44-2: swirly, cat-eye, mild rim, warm-ish CA
+ 8, 0.9f,  10, 0.75f, 0.9f, 0.5f,  0.25f, 0.0f, 0.3f, 0.4f,  0.01f, 0.0f,  0.4f, 0.2f,  0.05f, 1.0f, 0.05f,
+ // Petzval 85: extreme swirl, soft edges, heavy vignette
+ 0, 1.0f,   0, 0.9f, 1.5f, 1.2f,  0.3f, 0.0f, 0.4f, 0.3f,  0.0f,  0.0f,  0.65f, 0.25f, 0.05f, 1.0f, 0.1f,
+ // Meyer Trioplan 100: soap-bubble rims
+ 0, 1.0f,   0, 0.35f, 0.2f, 0.3f,  0.95f, 0.1f, 0.2f, 0.5f,  0.0f,  0.0f,  0.3f, 0.3f,  0.04f, 1.0f, 0.05f,
+ // Super Takumar 50/1.4: thorium yellowing, glow, LoCA
+ 6, 0.6f,  15, 0.45f, 0.2f, 0.25f, 0.1f, 0.0f, 0.2f, 0.6f,  0.01f, 0.0f,  0.4f, 0.35f, 0.08f, 1.0f, 0.35f,
+ // Cooke Speed Panchro: smooth round bokeh, gentle glow, warm
+ 0, 1.0f,   0, 0.4f, 0.1f, 0.35f, -0.25f, 0.0f, 0.2f, 0.25f, 0.0f,  0.0f,  0.4f, 0.3f,  0.04f, 1.0f, 0.12f,
+ // Zeiss Super Speed MkII: 7-blade polygonal bokeh
+ 7, 0.15f, 90, 0.3f, 0.05f, 0.2f,  0.1f, 0.0f, 0.15f, 0.3f, 0.005f, 0.0f, 0.3f, 0.15f, 0.03f, 1.0f, 0.0f,
+ // Modern clean prime: round, slight onion rings from aspherics
+ 11, 0.95f, 0, 0.25f, 0.0f, 0.05f, 0.05f, 0.18f, 0.03f, 0.08f, 0.015f, 0.0f, 0.25f, 0.0f, 0.0f, 1.0f, 0.0f,
+ // Noctilux 50/0.95: big cat-eye, smooth, glowy, strong vignette
+ 0, 1.0f,   0, 0.8f, 0.35f, 0.45f, -0.3f, 0.0f, 0.2f, 0.7f,  0.01f, 0.0f,  0.75f, 0.4f, 0.05f, 1.0f, 0.03f,
+ // Anamorphic 2x: oval bokeh, barrel, edge falloff
+ 11, 0.9f,  0, 0.35f, 0.15f, 0.4f,  0.2f, 0.0f, 0.3f, 0.3f,  0.08f, 0.02f, 0.5f, 0.2f, 0.04f, 2.0f, 0.0f,
+ // Apodization STF: ultra-smooth gaussian-like discs
+ 0, 1.0f,   0, 0.2f, 0.0f, 0.05f, -1.0f, 0.0f, 0.03f, 0.05f, 0.0f,  0.0f,  0.2f, 0.0f, 0.0f, 1.0f, 0.0f,
+ // Vintage wide 24mm: barrel distortion, CA, corner smear
+ 6, 0.5f,   0, 0.5f, 0.3f, 0.8f,  0.15f, 0.0f, 0.7f, 0.3f,  0.12f, 0.05f, 0.7f, 0.15f, 0.06f, 1.0f, 0.08f
+};
+
+#define PI 3.14159265f
+#define GOLDEN 2.39996323f
+
+__DEVICE__ float sstep(float a, float b, float x)
+{
+    float t = _saturatef((x - a) / (b - a));
+    return t * t * (3.0f - 2.0f * t);
+}
+
+__DEVICE__ float texN(__TEXTURE__ t, float x, float y, int w, int h)
+{
+    int ix = (int)_clampf(_round(x), 0.0f, (float)(w - 1));
+    int iy = (int)_clampf(_round(y), 0.0f, (float)(h - 1));
+    return _tex2D(t, ix, iy);
+}
+
+__DEVICE__ float texB(__TEXTURE__ t, float x, float y, int w, int h)
+{
+    x = _clampf(x, 0.0f, (float)(w - 1));
+    y = _clampf(y, 0.0f, (float)(h - 1));
+    int x0 = (int)_floorf(x);
+    int y0 = (int)_floorf(y);
+    int x1 = min(x0 + 1, w - 1);
+    int y1 = min(y0 + 1, h - 1);
+    float fx = x - (float)x0;
+    float fy = y - (float)y0;
+    float a = _tex2D(t, x0, y0);
+    float b = _tex2D(t, x1, y0);
+    float c = _tex2D(t, x0, y1);
+    float d = _tex2D(t, x1, y1);
+    return _mix(_mix(a, b, fx), _mix(c, d, fx), fy);
+}
+
+__DEVICE__ float luma(float r, float g, float b)
+{
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+__DEVICE__ float4 transform(int p_Width, int p_Height, int p_X, int p_Y, __TEXTURE__ p_TexR, __TEXTURE__ p_TexG, __TEXTURE__ p_TexB, __TEXTURE__ p_TexA)
+{
+    // ---- resolve lens parameters ------------------------------------------
+    int idx = (int)preset;
+    if (idx < 0 || idx > 11) idx = 0;
+    int o = idx * NP;
+
+    float blades, curve, rot, catEye, swirl, field, rim, onion, lca, loca, k1, k2, vig, glow, veil, squeeze, tint;
+    if (idx == 0) {
+        blades = (float)cBlades; curve = cCurve; rot = cRot; catEye = cCatEye; swirl = cSwirl;
+        field = cField; rim = cRim; onion = cOnion; lca = cLCA; loca = cLoCA; k1 = cK1; k2 = cK2;
+        vig = cVig; glow = cGlow; veil = cVeil; squeeze = cSqueeze; tint = cTint;
+    } else {
+        blades = PRESETS[o + 0]; curve = PRESETS[o + 1]; rot = PRESETS[o + 2]; catEye = PRESETS[o + 3];
+        swirl = PRESETS[o + 4]; field = PRESETS[o + 5]; rim = PRESETS[o + 6]; onion = PRESETS[o + 7];
+        lca = PRESETS[o + 8]; loca = PRESETS[o + 9]; k1 = PRESETS[o + 10]; k2 = PRESETS[o + 11];
+        vig = PRESETS[o + 12]; glow = PRESETS[o + 13]; veil = PRESETS[o + 14]; squeeze = PRESETS[o + 15];
+        tint = PRESETS[o + 16];
+    }
+
+    rim *= mBokeh; onion *= mBokeh; loca *= mBokeh * mCA;
+    catEye *= mSwirl; swirl *= mSwirl;
+    field *= mField;
+    lca *= mCA;
+    k1 *= mDist; k2 *= mDist;
+    glow = _saturatef(glow * mGlow); veil *= mGlow;
+    vig *= mVig;
+    tint *= mTint;
+    rim = _clampf(rim, -1.0f, 1.0f);
+
+    // ---- normalized optical coordinates (r = 1 at the frame corner) -------
+    float W = (float)p_Width, H = (float)p_Height;
+    float hd = 0.5f * _sqrtf(W * W + H * H);
+    float cx = 0.5f * W * (1.0f + centerX);
+    float cy = 0.5f * H * (1.0f + centerY);
+    float px = ((float)p_X - cx) / hd;
+    float py = ((float)p_Y - cy) / hd;
+    float r2 = px * px + py * py;
+    float r = _sqrtf(r2);
+
+    // radial / tangential directions for this pixel
+    float rdx = 1.0f, rdy = 0.0f;
+    if (r > 1e-5f) { rdx = px / r; rdy = py / r; }
+    float tdx = -rdy, tdy = rdx;
+
+    // ---- distortion ----------------------------------------------------------
+    float f = 1.0f + k1 * r2 + k2 * r2 * r2;
+    float fit = 1.0f;
+    if (fitFrame) fit = 1.0f / _fmaxf(1.0f, 1.0f + k1 + k2);
+    float sx = px * f * fit;
+    float sy = py * f * fit;
+
+    // lateral CA: per channel magnification
+    float caR = 1.0f + lca * 0.004f;
+    float caB = 1.0f - lca * 0.004f;
+    float xR = cx + sx * caR * hd, yR = cy + sy * caR * hd;
+    float xG = cx + sx * hd,       yG = cy + sy * hd;
+    float xB = cx + sx * caB * hd, yB = cy + sy * caB * hd;
+
+    float alpha = _tex2D(p_TexA, p_X, p_Y);
+
+    // ---- defocus amount at this pixel -----------------------------------------
+    float m;
+    if (focusMode == F_UNIFORM)        m = 1.0f;
+    else if (focusMode == F_RADIAL)    m = sstep(focusRadius, focusRadius + focusFalloff, r);
+    else if (focusMode == F_ALPHA)     m = _saturatef(alpha);
+    else                               m = 1.0f - _saturatef(alpha);
+    // field curvature: the focal plane bends away at the edges
+    m += field * r2 * (focusMode == F_UNIFORM ? 1.0f : 0.5f);
+    float Rpx = defocus * 0.005f * H * m;
+
+    // ---- sharp (in-focus) path, bilinear ---------------------------------------
+    float shR = texB(p_TexR, xR, yR, p_Width, p_Height);
+    float shG = texB(p_TexG, xG, yG, p_Width, p_Height);
+    float shB = texB(p_TexB, xB, yB, p_Width, p_Height);
+    float outR = shR, outG = shG, outB = shB;
+
+    // ---- bokeh gather ---------------------------------------------------------
+    float blurMix = sstep(0.6f, 2.0f, Rpx);
+    if (blurMix > 0.0f) {
+        int N = quality;
+        float extent = 1.0f + _fabs(loca) * 0.35f;
+        float eR = 1.0f + loca * 0.35f;
+        float eG = 1.0f;
+        float eB = 1.0f - loca * 0.35f;
+        float edgeSoft = 0.05f;
+        float seg = blades >= 3.0f ? 2.0f * PI / blades : 0.0f;
+        float rotRad = rot * PI / 180.0f;
+        // cat eye: second pupil shifted outward with field position
+        float ceShift = catEye * r * 1.1f;
+        float ceX = rdx * ceShift, ceY = rdy * ceShift;
+        float tStretch = 1.0f + swirl * r2 * 0.8f;
+        float rSquash = 1.0f / (1.0f + swirl * r2 * 0.3f);
+
+        float aR = 0.0f, aG = 0.0f, aB = 0.0f;
+        float wR = 0.0f, wG = 0.0f, wB = 0.0f;
+
+        for (int i = 0; i < N; i++) {
+            float fi = (float)i + 0.5f;
+            float rn = _sqrtf(fi / (float)N) * extent;
+            float th = (float)i * GOLDEN;
+
+            // polygonal aperture
+            float shape = 1.0f;
+            if (seg > 0.0f) {
+                float a = _fmod(th - rotRad + 64.0f * PI, seg) - 0.5f * seg;
+                float poly = _cosf(PI / blades) / _cosf(a);
+                shape = _mix(poly, 1.0f, curve);
+            }
+            float ax = _cosf(th) * rn * shape;
+            float ay = _sinf(th) * rn * shape;
+
+            // mechanical vignetting (cat eye)
+            float dx = ax + ceX, dy = ay + ceY;
+            float ce = sstep(1.0f + edgeSoft, 1.0f - edgeSoft, _sqrtf(dx * dx + dy * dy) / shape);
+            if (ce <= 0.0f) continue;
+
+            // swirl: stretch tangentially
+            float orad = ax * rdx + ay * rdy;
+            float otan = ax * tdx + ay * tdy;
+            orad *= rSquash; otan *= tStretch;
+            float ox = (orad * rdx + otan * tdx) * Rpx;
+            float oy = (orad * rdy + otan * tdy) * Rpx * squeeze;
+
+            float sR = texN(p_TexR, xR + ox, yR + oy, p_Width, p_Height);
+            float sG = texN(p_TexG, xG + ox, yG + oy, p_Width, p_Height);
+            float sB = texN(p_TexB, xB + ox, yB + oy, p_Width, p_Height);
+
+            float lum = luma(sR, sG, sB);
+            float hl = _fmaxf(lum - hlThresh, 0.0f) * 4.0f;
+            float hw = 1.0f + hlBoost * hl * hl;
+
+            // per-channel aperture edge (longitudinal CA / fringing) + rim profile
+            float q = rn;
+            float onionW = 1.0f + onion * 0.6f * _cosf(q * 38.0f);
+            float base = ce * hw * onionW;
+
+            float pR = _saturatef(q / eR), pG = _saturatef(q / eG), pB = _saturatef(q / eB);
+            float rimR = rim >= 0.0f ? 1.0f + rim * 4.0f * pR * pR * pR * pR : 1.0f + rim * pR * pR;
+            float rimG = rim >= 0.0f ? 1.0f + rim * 4.0f * pG * pG * pG * pG : 1.0f + rim * pG * pG;
+            float rimB = rim >= 0.0f ? 1.0f + rim * 4.0f * pB * pB * pB * pB : 1.0f + rim * pB * pB;
+            float kR = sstep(eR + edgeSoft, eR - edgeSoft, q) * rimR * base;
+            float kG = sstep(eG + edgeSoft, eG - edgeSoft, q) * rimG * base;
+            float kB = sstep(eB + edgeSoft, eB - edgeSoft, q) * rimB * base;
+
+            aR += sR * kR; wR += kR;
+            aG += sG * kG; wG += kG;
+            aB += sB * kB; wB += kB;
+        }
+        if (wR > 0.0f) outR = _mix(shR, aR / wR, blurMix);
+        if (wG > 0.0f) outG = _mix(shG, aG / wG, blurMix);
+        if (wB > 0.0f) outB = _mix(shB, aB / wB, blurMix);
+    }
+
+    // ---- glow (spherical aberration) + veiling glare ---------------------------
+    if (glow > 0.0f || veil > 0.0f) {
+        float gR = 0.0f, gG = 0.0f, gB = 0.0f, gw = 0.0f;
+        float gRad = 0.012f * H;
+        for (int i = 0; i < 24; i++) {
+            float fi = (float)i + 0.5f;
+            float rn = _sqrtf(fi / 24.0f);
+            float th = (float)i * GOLDEN;
+            float ox = _cosf(th) * rn * gRad;
+            float oy = _sinf(th) * rn * gRad;
+            float sR = texB(p_TexR, xR + ox, yR + oy, p_Width, p_Height);
+            float sG = texB(p_TexG, xG + ox, yG + oy, p_Width, p_Height);
+            float sB = texB(p_TexB, xB + ox, yB + oy, p_Width, p_Height);
+            float hl = _fmaxf(luma(sR, sG, sB) - 0.5f, 0.0f) * 3.0f;
+            float k = (1.0f - rn * 0.7f) * (1.0f + hl * hl * 2.0f);
+            gR += sR * k; gG += sG * k; gB += sB * k; gw += k;
+        }
+        gR /= gw; gG /= gw; gB /= gw;
+        // glow: screen-like soft halo, strongest around brights
+        outR = _mix(outR, _fmaxf(outR, gR), glow);
+        outG = _mix(outG, _fmaxf(outG, gG), glow);
+        outB = _mix(outB, _fmaxf(outB, gB), glow);
+        // veil: low-contrast lift from scattered light
+        outR += veil * gR; outG += veil * gG; outB += veil * gB;
+        float norm = 1.0f / (1.0f + veil * 0.5f);
+        outR *= norm; outG *= norm; outB *= norm;
+    }
+
+    // ---- natural vignette (cos^4-like) ------------------------------------------
+    float vt = vig * r * 0.9f;
+    float v = 1.0f / ((1.0f + vt * vt) * (1.0f + vt * vt));
+    outR *= v; outG *= v; outB *= v;
+
+    // ---- coating / glass tint -------------------------------------------------
+    outR *= 1.0f + tint * 0.06f;
+    outG *= 1.0f + tint * 0.01f;
+    outB *= 1.0f - tint * 0.14f;
+
+    return make_float4(outR, outG, outB, alpha);
+}

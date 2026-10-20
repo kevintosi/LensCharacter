@@ -1,0 +1,8 @@
+LensCharacter
+
+Measured lens data (resources/profiles/lensfun.json) is converted from the Lensfun database,
+https://github.com/lensfun/lensfun, licensed CC BY-SA 3.0
+(https://creativecommons.org/licenses/by-sa/3.0/). The converted file is shared under the same licence.
+
+JSON parsing: nlohmann/json 3.11.3, MIT licence, https://github.com/nlohmann/json
+OpenFX Support library: BSD licence, The Open Effects Association, via the DaVinci Resolve OpenFX SDK.

@@ -1,0 +1,642 @@
+<title>LensCharacter Engine</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: technical spec. Sticky contents rail on wide screens, single reading column on phones.
+   Palette borrows from lens coatings: cool glass neutrals, a violet coating accent, an amber warning hue. */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --ink: #161a22;
+  --muted: #5a6172;
+  --rule: #dde0e7;
+  --accent: #5a45b0;
+  --accent-soft: #ece9f8;
+  --amber: #a45f00;
+  --amber-soft: #fbf0e0;
+  --code-bg: #eef0f4;
+  --r: #c2413b; --g: #2f8a4c; --b: #2f5fc4;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11131a; --surface: #181b24; --ink: #e6e8ef; --muted: #9aa1b3; --rule: #2a2e3b;
+    --accent: #a89af0; --accent-soft: #241f3d; --amber: #e3a14a; --amber-soft: #2e2416;
+    --code-bg: #1e2230; --r: #ec7a73; --g: #6cc58a; --b: #7ea2f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11131a; --surface: #181b24; --ink: #e6e8ef; --muted: #9aa1b3; --rule: #2a2e3b;
+  --accent: #a89af0; --accent-soft: #241f3d; --amber: #e3a14a; --amber-soft: #2e2416;
+  --code-bg: #1e2230; --r: #ec7a73; --g: #6cc58a; --b: #7ea2f0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.62;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 56px;
+}
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); gap: 0; } .toc { display: none; } }
+
+header.masthead {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 56px 40px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 40px;
+  display: grid;
+  gap: 14px;
+}
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-family: var(--font-display);
+  font-stretch: 80%;
+  font-weight: 800;
+  font-size: clamp(40px, 7vw, 76px);
+  line-height: 0.98;
+  margin: 0;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+h1 .spec { color: var(--accent); }
+.lede { font-size: 19px; max-width: 64ch; margin: 0; color: var(--ink); }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 14px; }
+.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; counter-reset: t; }
+.toc li { counter-increment: t; }
+.toc a {
+  display: grid; grid-template-columns: 28px 1fr; padding: 5px 8px; border-radius: 6px;
+  color: var(--muted); text-decoration: none;
+}
+.toc a::before { content: counter(t, decimal-leading-zero); font-family: var(--font-mono); font-size: 12px; padding-top: 2px; }
+.toc a:hover, .toc a:focus-visible { background: var(--accent-soft); color: var(--ink); outline: none; }
+.toc .label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+
+main { min-width: 0; counter-reset: sec; }
+section { padding-block: 8px 40px; border-bottom: 1px solid var(--rule); margin-bottom: 40px; counter-increment: sec; }
+section:last-of-type { border-bottom: 0; }
+h2 {
+  font-family: var(--font-display); font-stretch: 85%; font-weight: 700;
+  font-size: 30px; line-height: 1.15; margin: 0 0 18px; text-wrap: balance;
+  display: flex; gap: 14px; align-items: baseline;
+}
+h2::before { content: counter(sec, decimal-leading-zero); font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); }
+h3 { font-family: var(--font-display); font-stretch: 90%; font-weight: 700; font-size: 19px; margin: 32px 0 10px; }
+p, ul, ol { max-width: 70ch; }
+p { margin: 0 0 14px; }
+ul, ol { padding-left: 22px; margin: 0 0 16px; }
+li { margin-bottom: 6px; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+
+.math {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  padding: 14px 18px;
+  border-radius: 4px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+  line-height: 1.8;
+  max-width: 76ch;
+}
+.math .c { color: var(--muted); }
+pre {
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.6;
+  background: var(--code-bg); padding: 16px 18px; border-radius: 6px;
+  overflow-x: auto; margin: 0 0 18px; max-width: 80ch;
+}
+.callout {
+  background: var(--amber-soft); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  padding: 14px 18px; border-radius: 6px; margin: 0 0 18px; max-width: 76ch; font-size: 15px;
+}
+.callout b { color: var(--amber); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 20px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--bg); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+.yes { color: var(--g); font-weight: 600; }
+.no { color: var(--r); font-weight: 600; }
+.part { color: var(--amber); font-weight: 600; }
+
+/* system diagram */
+.flow { display: grid; gap: 14px; margin: 8px 0 24px; }
+.lane { border: 1px solid var(--rule); border-radius: 8px; padding: 14px; background: var(--surface); }
+.lane-title { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.nodes { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+.node {
+  flex: 1 1 140px; min-width: 0; border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px;
+  background: var(--bg); font-size: 13px; line-height: 1.4;
+}
+.node b { display: block; font-family: var(--font-display); font-stretch: 90%; font-size: 15px; margin-bottom: 2px; }
+.node.key { border-color: var(--accent); background: var(--accent-soft); }
+.arrow { align-self: center; color: var(--muted); font-family: var(--font-mono); font-size: 14px; flex: 0 0 auto; }
+.handoff { text-align: center; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) { .arrow { display: none; } }
+
+/* render graph stages */
+.stages { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 12px; max-width: none; counter-reset: st -1; }
+.stage {
+  counter-increment: st; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 4px 14px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px 6px;
+}
+.stage::before {
+  content: "S" counter(st, decimal); counter-increment: none;
+  font-family: var(--font-mono); font-weight: 500; font-size: 14px; color: var(--accent);
+  grid-row: 1 / span 3; padding-top: 2px;
+}
+.stage h4 { margin: 0; font-family: var(--font-display); font-stretch: 90%; font-size: 17px; }
+.stage p, .stage ul { font-size: 15px; }
+.stage .io { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+.rgb-r { color: var(--r); } .rgb-g { color: var(--g); } .rgb-b { color: var(--b); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; font-size: 15px; }
+.card h4 { margin: 0 0 6px; font-family: var(--font-display); font-stretch: 90%; font-size: 16px; }
+.card p { margin: 0; }
+
+canvas#od { width: 100%; max-width: 560px; height: auto; aspect-ratio: 560 / 260; display: block; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); }
+.fig { margin: 0 0 22px; }
+.fig figcaption { font-size: 13px; color: var(--muted); margin-top: 6px; max-width: 70ch; }
+
+footer { max-width: 1180px; margin: 0 auto; font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<header class="masthead">
+  <div class="eyebrow">LensCharacter · Architecture draft v0.1 · 19 Oct 2026</div>
+  <h1>LensCharacter <span class="spec">Engine</span></h1>
+  <p class="lede">A GPU lens simulator for finishing. It reads measured lens profiles and recreates their distortion, chromatic aberration, field aberrations, bokeh and bloom on every frame. Each trait can be isolated, taken from a different lens, and pushed past what the real lens does.</p>
+  <div class="meta-row"><span>Target host: DaVinci Resolve 21 (OpenFX)</span><span>Backends: Metal · CUDA · OpenCL</span><span>Supersedes: LensCharacter.dctl prototype</span></div>
+</header>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="label">Contents</div>
+    <ol>
+      <li><a href="#scope">Scope and principles</a></li>
+      <li><a href="#overview">System overview</a></li>
+      <li><a href="#profile">Profile data model</a></li>
+      <li><a href="#ingest">Ingestion and frame state</a></li>
+      <li><a href="#graph">GPU render graph</a></li>
+      <li><a href="#distortion">Distortion and CA math</a></li>
+      <li><a href="#psf">Coma, fringing and bokeh</a></li>
+      <li><a href="#mixer">Trait mixer</a></li>
+      <li><a href="#overdrive">Overdrive</a></li>
+      <li><a href="#validation">Validation</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- 01 -->
+    <section id="scope">
+      <h2>Scope and principles</h2>
+      <p>This engine simulates lenses with code; it is not a colour lookup. A LUT maps one input colour to one output colour and cannot move or spread light across the frame. Our current DCTL can move light, but it runs one pass with no external data, no depth input and no stored state. Lens character needs all of these. Distortion and lateral CA are geometric warps. Coma, fringing and bokeh are point spread functions (PSFs) that change across the frame. Bloom is a long-range redistribution of energy. All of them are driven by measured data and not by hand-tuned constants.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Capability</th><th>3D LUT</th><th>DCTL (v1 prototype)</th><th>Engine (OFX plugin)</th></tr></thead>
+          <tbody>
+            <tr><td>Per-pixel colour transform</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+            <tr><td>Spatial warps and blur</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+            <tr><td>Multi-pass graph, intermediate buffers</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+            <tr><td>Load measured profile data</td><td class="no">No</td><td class="part">Hard-coded tables</td><td class="yes">Profile packages</td></tr>
+            <tr><td>Second input (depth, matte)</td><td class="no">No</td><td class="no">Alpha only</td><td class="yes">Extra OFX clips</td></tr>
+            <tr><td>Cached precomputed resources</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes, keyed by hash</td></tr>
+            <tr><td>Scene-linear, unclamped highlights</td><td class="part">Depends</td><td class="part">Node dependent</td><td class="yes">Enforced</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Design principles</h3>
+      <ul>
+        <li><strong>Physical first, stylised second.</strong> Every trait has a measured physical baseline. Stylisation is a controlled deviation from that baseline (see Overdrive), never a separate effect bolted on.</li>
+        <li><strong>Light is linear.</strong> All optics run on scene-linear float data. Bright sources keep values above 1.0, so a streetlight becomes a bright bokeh disc without any artificial highlight boost.</li>
+        <li><strong>Everything is a function of field position.</strong> Each trait is defined over field height <code>ρ</code>, azimuth <code>φ</code>, f-number <code>N</code> and focus distance <code>d<sub>f</sub></code>.</li>
+        <li><strong>Traits are independent layers.</strong> The data model stores each trait separately, so it can be isolated, mixed or switched off.</li>
+        <li><strong>The ideal lens is always valid.</strong> With every trait at zero, the engine skips all passes and returns the input bit-exact.</li>
+      </ul>
+    </section>
+
+    <!-- 02 -->
+    <section id="overview">
+      <h2>System overview</h2>
+      <p>The system has an offline half, which turns captures into profiles, and a runtime half inside the host, which turns profiles into pixels. They share one versioned file format.</p>
+
+      <div class="flow" role="img" aria-label="Offline profiling pipeline feeding the runtime plugin pipeline">
+        <div class="lane">
+          <div class="lane-title">Offline · profiling studio</div>
+          <div class="nodes">
+            <div class="node"><b>Capture</b>Grid, slanted-edge, point-source, flat-field and HDR glare shots per stop and focus.</div>
+            <span class="arrow">→</span>
+            <div class="node"><b>Profile compiler</b>Fits models, solves Zernike terms, extracts aperture shapes, checks residuals.</div>
+            <span class="arrow">→</span>
+            <div class="node key"><b>.lensprofile</b>Manifest, sampled curves and EXR textures. Versioned and hashed.</div>
+          </div>
+        </div>
+        <div class="handoff">profile library on disk ↓ importers also accept Lensfun, Adobe LCP, STMaps</div>
+        <div class="lane">
+          <div class="lane-title">Runtime · OFX plugin in Resolve</div>
+          <div class="nodes">
+            <div class="node"><b>Profile cache</b>Parse, validate, resample, upload once.</div>
+            <span class="arrow">→</span>
+            <div class="node"><b>Trait mixer</b>Chooses a source lens and weight for each trait.</div>
+            <span class="arrow">→</span>
+            <div class="node"><b>Overdrive</b>Scales each trait's deviation, soft-limited by a validity budget.</div>
+            <span class="arrow">→</span>
+            <div class="node key"><b>LensState</b>Per-frame constants plus baked textures.</div>
+            <span class="arrow">→</span>
+            <div class="node"><b>GPU render graph</b>S0 to S7 on Metal, CUDA or OpenCL.</div>
+          </div>
+        </div>
+      </div>
+
+      <p>The CPU side is cheap and runs once per frame: it interpolates the profile, mixes traits, applies overdrive and checks dirty flags. The GPU side does the heavy work. Expensive derived resources, such as warp maps and PSF kernel atlases, are rebuilt only when the inputs that affect them change, never on every frame.</p>
+    </section>
+
+    <!-- 03 -->
+    <section id="profile">
+      <h2>Profile data model</h2>
+      <h3>Coordinates</h3>
+      <p>Profiles are stored in sensor units, not pixels, so one profile works at any resolution or crop. Field height is normalised to the lens's image circle:</p>
+      <div class="math">
+        x<sub>mm</sub> = (p<sub>x</sub> − c<sub>x</sub>) · (W<sub>sensor</sub> / W<sub>px</sub>) · s<sub>squeeze</sub>  <span class="c">// pixel → sensor mm, anamorphic de-squeeze</span><br>
+        ρ = ‖(x<sub>mm</sub>, y<sub>mm</sub>)‖ / R<sub>image circle</sub>,  φ = atan2(y<sub>mm</sub>, x<sub>mm</sub>)  <span class="c">// ρ = 1 at the edge of coverage</span>
+      </div>
+      <p>The user supplies sensor width and the active crop, or the engine reads them from clip metadata. The optical centre <code>c</code> is a profile value and can be overridden by the user.</p>
+
+      <h3>Trait models</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trait</th><th>Model</th><th>Stored as</th><th>Captured with</th></tr></thead>
+          <tbody>
+            <tr><td>Distortion</td><td>Brown–Conrady radial k<sub>1..3</sub>, tangential p<sub>1,2</sub>; separate x and y radial terms for anamorphics</td><td>Coefficients per (focus, zoom), optional residual STMap EXR</td><td>Dot or checker grid, several poses, bundle adjustment</td></tr>
+            <tr><td>Lateral CA</td><td>Per-channel magnification m<sub>c</sub>(ρ) relative to green</td><td>Two 1D curves (R, B), 65 samples</td><td>Per-channel dot centroids across the field</td></tr>
+            <tr><td>Longitudinal CA</td><td>Per-channel focus offset Δz<sub>c</sub>, in CoC units</td><td>Scalars per f-stop</td><td>Through-focus slanted-edge series</td></tr>
+            <tr><td>Field PSF (coma, astigmatism, spherical, field curvature)</td><td>Zernike wavefront coefficients W<sub>n,m</sub>(ρ) up to 4th order</td><td>Coefficient curves per stop and channel</td><td>Pinhole LED grid; PSF fit or phase retrieval</td></tr>
+            <tr><td>Aperture shape</td><td>Signed distance field (SDF) of the iris per stop</td><td>256² SDF texture per stop</td><td>Defocused point source on axis</td></tr>
+            <tr><td>Pupil texture</td><td>Radial transmission T(r) for rim, apodisation and onion rings, plus a residual texture</td><td>1D curve plus 128² texture</td><td>Same shots, radially averaged</td></tr>
+            <tr><td>Mechanical vignetting (cat-eye)</td><td>Two clipping circles (front and rear pupil): radius and offset vs ρ</td><td>Four curves</td><td>Defocused point sources across the field</td></tr>
+            <tr><td>Relative illumination</td><td>Gain V(ρ) per stop</td><td>1D curve per stop</td><td>Flat field through a diffuser</td></tr>
+            <tr><td>Bloom, veil, halation</td><td>Radially symmetric PSF tail: 3 or 4 Gaussians plus a power law, plus a veiling-glare constant</td><td>Parameters per stop</td><td>HDR point source; ISO 18844 glare target</td></tr>
+            <tr><td>Coating tint</td><td>Spectral transmission reduced to a 3×3 matrix</td><td>Matrix</td><td>Colour chart, lens against a reference lens</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Each trait is sampled over <code>(N, d<sub>f</sub>, zoom)</code> and interpolated trilinearly in <code>(log N, 1/d<sub>f</sub>, zoom)</code>. Lens behaviour changes roughly linearly in those spaces.</p>
+
+      <h3>Package format</h3>
+<pre>cooke-s4-32mm.lensprofile          (zip)
+├── manifest.json     schema version, lens identity, units, sensor reference,
+│                     sampling grids, capture provenance, content hash
+├── curves.bin        float32 blocks indexed by manifest (ρ-curves, Zernike, V(ρ))
+├── aperture/T2.0.exr ... T22.exr      iris SDFs
+├── pupil/texture.exr                  residual pupil texture (onion rings, dust)
+└── residual/distortion_f1.2m.exr      optional STMap residuals</pre>
+      <p>Importers convert existing data into the same model, so distortion, CA and vignetting work before we capture anything ourselves. Sources: the <strong>Lensfun</strong> database, <strong>Adobe LCP</strong> profiles, <strong>Nuke and 3DEqualizer STMaps</strong>, and per-frame focus, iris and distortion metadata from <strong>Cooke /i</strong> and <strong>ZEISS eXtended Data</strong>. Check the licence of each source before shipping its data.</p>
+    </section>
+
+    <!-- 04 -->
+    <section id="ingest">
+      <h2>Ingestion and per-frame state</h2>
+      <h3>On load (once per profile)</h3>
+      <ol>
+        <li>Parse the manifest and reject unknown schema versions or unit mismatches.</li>
+        <li>Resample every ρ-curve onto a canonical grid of 128 samples, ρ ∈ [0, 1.25], to cover overscan.</li>
+        <li>Upload curves into one 2D float texture (one row per curve) and the SDFs into a texture array.</li>
+        <li>Cache by content hash in a process-wide store, so ten instances of the same lens share one upload.</li>
+      </ol>
+
+      <h3>Every frame (CPU, microseconds)</h3>
+<pre>state = LensState()
+for trait in TRAITS:
+    sources = mixer.slots[trait]                       # profile refs + weights
+    params  = [interp(p.trait, N, focus, zoom) for p in sources]
+    blended = trait.blend(params, weights)            # parameter-space blend (§08)
+    state[trait] = overdrive(trait, blended, amount)  # soft-limited (§09)
+
+if hash(state.geometry) != cache.geometry_hash:  bake_stmaps(state)       # §06
+if hash(state.psf)      != cache.psf_hash:       bake_psf_atlas(state)    # §07
+if hash(state.bloom)    != cache.bloom_hash:     solve_pyramid_weights(state)
+upload(state.constants)                           # ~2 KB constant buffer</pre>
+      <p>Aperture and focus distance come from keyframed parameters. When the clip carries Cooke /i or ZEISS XD metadata, they can come from that instead, so a rack focus in the original shot drives the simulated lens.</p>
+    </section>
+
+    <!-- 05 -->
+    <section id="graph">
+      <h2>GPU render graph</h2>
+      <p>Eight stages run in a fixed order. The order follows how a real camera forms an image: geometry first, then the spread of each point of light in the final image plane, then scatter, then shading. Any stage whose trait is zero is skipped.</p>
+      <ol class="stages">
+        <li class="stage">
+          <h4>Input and linearise</h4>
+          <div class="io">in: source clip · out: RGBA float, scene-linear</div>
+          <p>Convert from the timeline working space to scene-linear using the OpenFX 1.5 colour-management API, which Resolve 21 supports. If no colour management is available, use a transfer function the user selects.</p>
+        </li>
+        <li class="stage">
+          <h4>Defocus map</h4>
+          <div class="io">in: depth clip | matte | radial | uniform · out: signed CoC (px), tile min/max</div>
+          <p>Thin-lens circle of confusion, signed so the engine knows near from far: <code>c = f²/(N(d<sub>f</sub>−f)) · (d−d<sub>f</sub>)/d</code>. A 16×16 tile pass stores min and max CoC for each tile. Later stages use it to dilate blur across depth edges and to skip work quickly in tiles that are in focus.</p>
+        </li>
+        <li class="stage">
+          <h4>Geometric warp (distortion and lateral CA)</h4>
+          <div class="io">in: linear RGB, CoC · out: warped RGB, warped CoC</div>
+          <p>One resample using three baked per-channel STMaps. Filter: Catmull-Rom or Lanczos-3, with an anti-ringing clamp. Overscan policy: fit to frame, extend edges, or leave transparent alpha.</p>
+        </li>
+        <li class="stage">
+          <h4>Field-variant PSF and bokeh</h4>
+          <div class="io">in: warped RGB, CoC, PSF atlas, aperture SDFs · out: defocused RGB</div>
+          <p>The heavy pass. Each pixel uses its own kernel, built from field position, CoC per channel, iris shape, cat-eye clipping and coma. Details in §07.</p>
+        </li>
+        <li class="stage">
+          <h4>Edge fringing</h4>
+          <div class="io">in: S3 output, luminance gradient · out: fringed RGB</div>
+          <p>Most fringing already comes from the per-channel CoC in S3. This stage adds sensor-side purple fringing next to clipped highlights, at a strength set by the profile.</p>
+        </li>
+        <li class="stage">
+          <h4>Bloom, veil and halation</h4>
+          <div class="io">in: RGB · out: RGB with scattered energy</div>
+          <p>A 6–8 level dual-filter pyramid whose level weights are solved to match the measured PSF tail. Energy-conserving: <code>out = (1−e)·I + e·Σ w<sub>l</sub>·L<sub>l</sub></code>.</p>
+        </li>
+        <li class="stage">
+          <h4>Relative illumination and tint</h4>
+          <div class="io">in: RGB · out: RGB</div>
+          <p>Multiply by <code>V(ρ<sub>c</sub>)</code> per channel, then apply the coating matrix. Done in linear light, where gain is physically correct.</p>
+        </li>
+        <li class="stage">
+          <h4>Output</h4>
+          <div class="io">in: RGB · out: working space RGBA</div>
+          <p>Scrub NaN and Inf, pass alpha through (or warp it with the image when overscan is transparent), and convert back to the working space.</p>
+        </li>
+      </ol>
+
+      <h3>GPU implementation</h3>
+      <div class="grid2">
+        <div class="card"><h4>Host integration</h4><p>An OpenFX plugin using the host's GPU render suites. Resolve hands the plugin Metal, CUDA or OpenCL buffers directly, so frames never travel back to the CPU. Intermediate buffers come from the host's memory suite.</p></div>
+        <div class="card"><h4>One kernel source</h4><p>Kernels are written once in Slang, or in a C subset with macros like DCTL's, then compiled to MSL, CUDA and OpenCL. A CPU fallback with the same code exists for render farms and tests.</p></div>
+        <div class="card"><h4>Adaptive cost</h4><p>Samples per pixel scale with CoC², up to a cap. Tiles with large CoC render at half resolution and are upsampled with a filter that respects CoC edges. Tiles that are in focus use the small PSF atlas only.</p></div>
+        <div class="card"><h4>Frame budget</h4><p>Target: under 40 ms per UHD frame on Apple M-series Max and RTX 4080 class GPUs at moderate defocus, so review plays back in real time. These are targets, not measurements.</p></div>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section id="distortion">
+      <h2>Distortion and chromatic aberration math</h2>
+      <h3>Forward model</h3>
+      <p>The profile describes how the lens moves an ideal (pinhole) image point <code>u</code> to where it lands on the sensor, <code>d</code>:</p>
+      <div class="math">
+        r² = u<sub>x</sub>² + u<sub>y</sub>²<br>
+        d = u · (1 + k<sub>1</sub>r² + k<sub>2</sub>r⁴ + k<sub>3</sub>r⁶) + [2p<sub>1</sub>u<sub>x</sub>u<sub>y</sub> + p<sub>2</sub>(r²+2u<sub>x</sub>²),  p<sub>1</sub>(r²+2u<sub>y</sub>²) + 2p<sub>2</sub>u<sub>x</sub>u<sub>y</sub>]<br>
+        <span class="c">// k₁ &lt; 0 → barrel, k₁ &gt; 0 → pincushion, mixed signs on k₁/k₂ → moustache</span>
+      </div>
+      <h3>Inverse mapping for rendering</h3>
+      <p>To render, each output pixel needs the opposite direction: which source point lands here? The engine solves <code>u = D⁻¹(d)</code> with 3–5 Newton iterations per texel, once per parameter change, and bakes the result into an STMap at ¼ resolution (bilinear lookup is accurate enough because the map is smooth). A residual STMap from the profile, if present, is added afterwards.</p>
+
+      <h3>Lateral CA folded into the same warp</h3>
+      <p>Lateral CA is a slightly different magnification per wavelength. Red/cyan fringes come from <code>m<sub>R</sub> ≠ 1</code> and blue/yellow fringes from <code>m<sub>B</sub> ≠ 1</code>. The sign decides which colour sits on the outer edge:</p>
+      <div class="math">
+        u<sub>c</sub>(d) = D⁻¹( d / m<sub>c</sub>(ρ) ),  c ∈ {<span class="rgb-r">R</span>, <span class="rgb-g">G</span>, <span class="rgb-b">B</span>},  m<sub>G</sub> ≡ 1<br>
+        <span class="c">// m_R(ρ) &gt; 1 → red pushed outward, cyan edge inward</span><br>
+        <span class="c">// m_B(ρ) &lt; 1 → blue pulled inward, yellow edge outward</span>
+      </div>
+      <p>Because <code>m<sub>c</sub></code> is a full curve, not one coefficient, the effect can change sign across the field the way real lenses do. The three channel maps are baked together and S2 samples each channel once. Distortion and CA together cost one pass.</p>
+    </section>
+
+    <!-- 07 -->
+    <section id="psf">
+      <h2>Coma, fringing and bokeh</h2>
+      <p>These three traits are one physical object: the point spread function, at a given field position, focus offset and wavelength. Modelling them together keeps them consistent with each other. A swirly lens's cat-eye bokeh and the coma in its sharp corners come from the same pupil.</p>
+
+      <h3>From profile to kernel</h3>
+      <div class="math">
+        P<sub>c</sub>(x,y; ρ) = A(x,y) · T(r) · Clip<sub>cat-eye</sub>(x,y; ρ) · exp( i·2π/λ<sub>c</sub> · W(x,y; ρ, Δz<sub>c</sub>) )<br>
+        PSF<sub>c</sub>(ρ) = | 𝓕{ P<sub>c</sub> } |²   <span class="c">// sharp regime, baked into the atlas</span><br>
+        W = Σ W<sub>n,m</sub>(ρ)·Z<sub>n</sub><sup>m</sup>  <span class="c">// Z₂⁰ defocus · Z₂^±2 astigmatism · Z₃^±1 coma · Z₄⁰ spherical</span>
+      </div>
+      <ul>
+        <li><strong>Small CoC (in focus or nearly).</strong> Diffraction and aberrations dominate. The engine bakes <code>PSF<sub>c</sub></code> by FFT at 16 field rings × 3 channels into a 64² kernel atlas. S3 rotates each kernel to the pixel's azimuth <code>φ</code> and convolves directly. This is where <strong>coma</strong> appears: comet-shaped flare on bright points in the corners, pointing away from the centre.</li>
+        <li><strong>Large CoC (defocused).</strong> Geometric optics dominates. The kernel is the pupil projected and scaled by CoC: iris SDF × transmission T(r) × cat-eye clip. S3 evaluates it on the fly with stratified samples in the pixel's tangential frame, so cat-eye and swirl follow the field.</li>
+        <li><strong>Between the two</strong>, the engine crossfades over a CoC range set in the profile (about 2–6 px).</li>
+      </ul>
+
+      <h3>Fringing at high-contrast edges</h3>
+      <p>Longitudinal CA gives each channel its own CoC: <code>c<sub>c</sub> = c + Δz<sub>c</sub></code>. In front of the focal plane, red blurs more than blue, and behind it the reverse. That produces the purple-before, green-behind fringes on contrasty edges and the coloured rims on bokeh, with no separate fringe effect. S4 adds only the part that comes from the sensor: purple blooming beside clipped highlights.</p>
+
+      <h3>Bokeh texture and depth falloff</h3>
+      <ul>
+        <li><strong>Aperture shape.</strong> The SDF for the current stop. Blade count, curvature and rotation are measured, so a 7-blade Super Speed at T2.8 gives heptagons and a round iris wide open gives circles.</li>
+        <li><strong>Texture.</strong> <code>T(r)</code> gives bright rims (soap-bubble lenses) or soft edges (apodisation filters). The residual texture adds onion rings from aspherical elements and dust specks.</li>
+        <li><strong>Depth falloff.</strong> CoC from S1 grows with distance from the focal plane following the thin-lens curve, so near and far blur fall off at the correct asymmetric rates. Near and far samples are gathered as separate layers, using the tile-dilated CoC, so foreground blur spreads over in-focus edges and not under them.</li>
+      </ul>
+    </section>
+
+    <!-- 08 -->
+    <section id="mixer">
+      <h2>Trait mixer</h2>
+      <p>The mixer treats a lens as a stack of independent trait slots. Each slot names its source lens and how strongly it applies. The rule that makes mixing work: <strong>blend parameters, never pixels.</strong> Rendering two lenses and cross-fading the frames gives double images. Blending their descriptions gives one coherent, plausible lens.</p>
+
+      <h3>Slot structure</h3>
+<pre>{
+  "recipe": "Cooke geometry, Blackwing glow",
+  "base": "modern-clean-50",                       // fills any slot not listed
+  "slots": {
+    "distortion": { "sources": [["cooke-s4-32", 1.0]], "overdrive": 1.0 },
+    "lateral_ca": { "sources": [["cooke-s4-32", 1.0]], "overdrive": 1.0 },
+    "bloom":      { "sources": [["blackwing7-47", 0.8]], "overdrive": 1.4 },
+    "bokeh":      { "sources": [["helios-44-2", 0.6], ["blackwing7-47", 0.4]] },
+    "field_psf":  { "link": "bokeh" }              // keeps coma consistent with the pupil
+  },
+  "field_basis": "normalized_height"               // or "field_angle"
+}</pre>
+      <p>A weight below 1 blends toward the <strong>ideal lens</strong> (zero deviation). Several sources in one slot are combined with normalised weights. Recipes refer to profiles by ID and content hash, so a recipe still reproduces exactly after the profile library is updated.</p>
+
+      <h3>Blend operators per trait</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trait</th><th>Blend space</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Distortion</td><td>Coefficients if the models match, otherwise displacement fields</td><td>Displacements add linearly, and the result stays one smooth warp</td></tr>
+            <tr><td>Lateral CA</td><td>Linear in <code>m<sub>c</sub>(ρ) − 1</code></td><td>Magnification offsets are small and additive</td></tr>
+            <tr><td>Field PSF</td><td>Linear in Zernike coefficients</td><td>Wavefront error is additive, so the blend is physically meaningful</td></tr>
+            <tr><td>Aperture shape</td><td>Linear in SDF</td><td>Morphs heptagon to circle without breaking the outline</td></tr>
+            <tr><td>Pupil texture</td><td>Linear in T(r), then renormalised</td><td>Total light stays constant</td></tr>
+            <tr><td>Vignetting</td><td>Log gain (geometric mean)</td><td>Illumination is multiplicative; stops blend evenly</td></tr>
+            <tr><td>Bloom</td><td>Widths in log space, weights linear, energy renormalised</td><td>Avoids muddy mid-sized halos from averaging widths</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Mixing lenses of different formats</h3>
+      <p>Traits taken from a 32 mm lens and applied to a plate shot on a 75 mm need a shared reference. With <strong>normalised image height</strong> (the default), the trait covers the frame the same way it covered the original image circle. With <strong>field angle</strong>, it maps by real viewing angle, which is better for matching a wide lens's corner behaviour on a tighter shot.</p>
+
+      <h3>Linked traits</h3>
+      <p>Some traits share a physical cause. By default they are linked so they move together, and the user can unlink them on purpose:</p>
+      <ul>
+        <li>Cat-eye, swirl, field curvature and coma all come from pupil geometry and off-axis aberrations.</li>
+        <li>Longitudinal CA drives both bokeh rims and edge fringing.</li>
+        <li>Relative illumination and cat-eye clipping both come from mechanical vignetting.</li>
+      </ul>
+    </section>
+
+    <!-- 09 -->
+    <section id="overdrive">
+      <h2>Overdrive</h2>
+      <p>Every trait parameter is stored as a deviation from the ideal lens, <code>θ = θ<sub>0</sub> + Δ</code>. Overdrive amount <code>o</code> scales the deviation. Up to <code>o = 1</code> it is exact physical scaling. Above 1 it extrapolates into stylised territory, passing through a soft limiter tuned to that trait's <strong>validity budget</strong> <code>B</code>. The budget is the point where the image would break: a warp folding over itself, a kernel larger than the sampler covers, or energy that no longer adds up.</p>
+      <div class="math">
+        Δ′ = sign(Δ) · B · S( o·|Δ| / B ),   S(x) = x / (1 + x⁴)^¼<br>
+        <span class="c">// S(x) ≈ x for x ≪ 1: subtle traits scale linearly, so o = 2 really doubles them</span><br>
+        <span class="c">// S(x) → 1 as x → ∞: any amount of overdrive stays inside the budget</span>
+      </div>
+
+      <figure class="fig">
+        <canvas id="od" width="1120" height="520" aria-label="Plot of overdrive response: output deviation against overdrive amount for a subtle trait and a strong trait, both approaching the budget line"></canvas>
+        <figcaption>Output deviation Δ′ (as a fraction of budget B) against overdrive amount o. A subtle trait (Δ = 0.1 B) grows almost linearly for a long range. A trait already strong at o = 1 (Δ = 0.6 B) bends toward the budget early and never crosses it.</figcaption>
+      </figure>
+
+      <h3>Budgets per trait</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trait</th><th>Budget B: what it protects</th></tr></thead>
+          <tbody>
+            <tr><td>Distortion</td><td>The warp stays one-to-one: <code>∂(r·f(r))/∂r &gt; ε</code> across ρ ∈ [0, 1.25]. Solved numerically per recipe at bake time, so barrel never folds into a mirrored ring.</td></tr>
+            <tr><td>Lateral CA</td><td>Channel separation up to 2% of the diagonal. Past that, channels become separate ghost images (available in Unbounded mode).</td></tr>
+            <tr><td>Bokeh and PSF</td><td>Kernel radius stays within the sampler's coverage (10% of frame height). Kernels always sum to 1, so overdrive changes shape, never exposure.</td></tr>
+            <tr><td>Coma</td><td>Kernel centroid shift stays under the kernel radius, so flare trails but never detaches from its source.</td></tr>
+            <tr><td>Bloom</td><td>Energy fraction e ≤ 0.95, so detail is never fully replaced by glow.</td></tr>
+            <tr><td>Vignetting</td><td>Gain floor of −6 stops, so corners never reach zero or produce NaNs in later log-space grading.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Further stylisation controls</h3>
+      <ul>
+        <li><strong>Field shaping.</strong> Remap where a trait appears with <code>ρ′ = ρ<sup>γ</sup></code>. When γ &lt; 1, edge character such as swirl and cat-eye moves toward the centre of frame.</li>
+        <li><strong>Negative overdrive.</strong> Inverts the deviation: barrel becomes pincushion, and red-outside CA becomes blue-outside.</li>
+        <li><strong>Anisotropic overdrive.</strong> Scales only the tangential or radial part of a kernel, for example extreme swirl without extra radial smear.</li>
+        <li><strong>Unbounded mode.</strong> Turns the soft limiter off for deliberate breakage, behind a warning in the UI.</li>
+      </ul>
+
+      <div class="callout"><b>Data guarantees at any setting</b>Float32 throughout, highlights never clamped, kernels normalised, NaN and Inf scrubbed, alpha preserved, output deterministic per frame (no unseeded noise), and the identity lens returns the input bit-exact.</div>
+    </section>
+
+    <!-- 10 -->
+    <section id="validation">
+      <h2>Validation</h2>
+      <ul>
+        <li><strong>Round trip.</strong> Render synthetic charts (dot grid, slanted edges, point grid, flat field) through the engine with a profile. Run the profile compiler's own analysis on the renders and compare with the real captures: distortion RMS in pixels, MTF50 by field position, CA separation, vignetting curve.</li>
+        <li><strong>Golden images.</strong> Each backend (Metal, CUDA, OpenCL, CPU) must match stored reference frames within a fixed tolerance on every build.</li>
+        <li><strong>Invariants.</strong> Identity recipe is bit-exact. Kernel energy sums to 1. Warps stay one-to-one up to the budget. No NaN for any input, including Inf and negative values.</li>
+        <li><strong>Side-by-side review.</strong> Shoot the same scene on the real lens and on a clean reference lens, then process the reference with the engine and compare. This is the final check that matters for a colourist.</li>
+      </ul>
+    </section>
+
+    <!-- 11 -->
+    <section id="roadmap">
+      <h2>Roadmap from the DCTL prototype</h2>
+      <p>The current <code>LensCharacter.dctl</code> already contains the kernel logic for the iris polygon, cat-eye clipping, tangential swirl, per-channel rims and Vogel sampling. That code moves into S3 nearly unchanged. Its hard-coded preset table becomes the first set of hand-made profiles until measured ones exist.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Phase</th><th>Delivers</th><th>Unlocks</th></tr></thead>
+          <tbody>
+            <tr><td>1 · Skeleton</td><td>OFX plugin on Metal, linear I/O, S2 warp with lateral CA, S6 vignetting, profile loader, Lensfun and LCP importers</td><td>Real measured distortion, CA and vignetting from existing data</td></tr>
+            <tr><td>2 · Bokeh</td><td>S1 with depth clip input, S3 large-CoC path, iris SDFs, cat-eye, near and far layers</td><td>Depth-correct bokeh; works with Resolve's Depth Map output</td></tr>
+            <tr><td>3 · Profiling</td><td>Capture protocol, profile compiler, Zernike field PSF, atlas baking</td><td>Coma, astigmatism and in-focus character from our own captures</td></tr>
+            <tr><td>4 · Mixer</td><td>Trait slots, recipes, linked groups, overdrive with budgets</td><td>Mix-and-match lenses and stylised looks</td></tr>
+            <tr><td>5 · Finish</td><td>Calibrated S5 bloom, S4 sensor fringing, half-res path, CUDA and OpenCL backends</td><td>Real-time playback and support for other platforms</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Open questions</h3>
+      <ul>
+        <li>Can a Resolve OFX plugin read per-frame lens metadata (focus, iris) directly, or does it need a scripting bridge or sidecar file?</li>
+        <li>What depth source should be the default: Resolve's Depth Map node routed as a matte, an external depth clip, or both?</li>
+        <li>Licensing terms for redistributing data derived from Lensfun and Adobe LCP profiles.</li>
+        <li>Is lens hire and capture time for Cooke, Blackwing and vintage glass practical, or should version 1 rely on imported data plus hand-built profiles?</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<footer>LensCharacter · architecture draft v0.1 · ~/Projects/lens_character/docs/architecture.html</footer>
+
+<script>
+(function () {
+  const c = document.getElementById('od');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function S(x) { return x / Math.pow(1 + Math.pow(x, 4), 0.25); }
+  function draw() {
+    const W = c.width, H = c.height, padL = 90, padR = 30, padT = 30, padB = 70;
+    const ink = css('--ink'), muted = css('--muted'), rule = css('--rule'), acc = css('--accent'), amb = css('--amber'), surf = css('--surface');
+    ctx.fillStyle = surf; ctx.fillRect(0, 0, W, H);
+    const oMax = 10, yMax = 1.1;
+    const X = o => padL + (o / oMax) * (W - padL - padR);
+    const Y = v => H - padB - (v / yMax) * (H - padT - padB);
+    ctx.font = '22px "JetBrains Mono", Menlo, monospace';
+    ctx.lineWidth = 1;
+    for (let o = 0; o <= oMax; o += 2) {
+      ctx.strokeStyle = rule; ctx.beginPath(); ctx.moveTo(X(o), Y(0)); ctx.lineTo(X(o), Y(yMax)); ctx.stroke();
+      ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.fillText(String(o), X(o), H - padB + 30);
+    }
+    [0, 0.5, 1].forEach(v => {
+      ctx.strokeStyle = rule; ctx.beginPath(); ctx.moveTo(X(0), Y(v)); ctx.lineTo(X(oMax), Y(v)); ctx.stroke();
+      ctx.fillStyle = muted; ctx.textAlign = 'right'; ctx.fillText(v === 1 ? 'B' : v.toFixed(1), X(0) - 12, Y(v) + 7);
+    });
+    ctx.fillStyle = muted; ctx.textAlign = 'center'; ctx.fillText('overdrive amount o', (X(0) + X(oMax)) / 2, H - 14);
+    ctx.setLineDash([10, 8]); ctx.strokeStyle = amb; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(X(0), Y(1)); ctx.lineTo(X(oMax), Y(1)); ctx.stroke(); ctx.setLineDash([]);
+    function curve(d, color, label) {
+      ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.beginPath();
+      for (let i = 0; i <= 200; i++) { const o = i / 200 * oMax; const v = S(o * d); i ? ctx.lineTo(X(o), Y(v)) : ctx.moveTo(X(o), Y(v)); }
+      ctx.stroke();
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(1), Y(S(d)), 7, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '600 22px "IBM Plex Sans", sans-serif'; ctx.textAlign = 'left';
+      const lo = d < 0.3 ? 7.2 : 4.6; ctx.fillText(label, X(lo), Y(S(lo * d)) + (d < 0.3 ? -16 : 34));
+      ctx.font = '22px "JetBrains Mono", Menlo, monospace';
+    }
+    curve(0.1, acc, 'Δ = 0.1 B');
+    curve(0.6, ink, 'Δ = 0.6 B');
+    ctx.fillStyle = muted; ctx.textAlign = 'left'; ctx.fillText('dot = physical lens (o = 1)', X(0) + 12, Y(1.06));
+  }
+  draw();
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw); } catch (e) {}
+  try { new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+})();
+</script>
